@@ -24,7 +24,9 @@ function startMutationObserver() {
     const observer = new MutationObserver(function (mutations) {
         mutations.forEach(function (mutation) {
             mutation.addedNodes.forEach(function (node) {
-                addClickEvent(node);
+                if (isTargetImage(node)) {
+                    addClickEvent(node);
+                }
             });
         });
     });
@@ -47,12 +49,12 @@ function insertZoomLayer() {
 
 function addClickEvent(node) {
 
-    if (!isTargetImage(node)) return;
-
     // すでにクリックイベントを設定している場合は無視
-    if (node.hasAttribute('data-click-event-added')) return;
+    if (node.onclick === photoSwipeClickEventHandler) return;
 
-    node.addEventListener('click', function (event) {
+    node.addEventListener('click', photoSwipeClickEventHandler);
+
+    function photoSwipeClickEventHandler(event) {
         const clickedElement = event.target;
 
         const zoomLayer = document.getElementById(zoomLayerID);
@@ -64,7 +66,7 @@ function addClickEvent(node) {
         zoomItem.setAttribute('data-pswp-height', clickedElement.naturalHeight);
 
         zoomItem.click();
-    });
+    }
 }
 
 function initPhotoswipe() {
@@ -77,22 +79,21 @@ function initPhotoswipe() {
             isButton: true,
             tagName: 'a',
 
-            // SVG with outline
+            // ダウンロードボタンのカスタマイズ
             html: {
                 isCustomSVG: true,
                 inner: '<path d="M20.5 14.3 17.1 18V10h-2.2v7.9l-3.4-3.6L10 16l6 6.1 6-6.1ZM23 23H9v2h14Z" id="pswp__icn-download"/>',
                 outlineID: 'pswp__icn-download'
             },
-
             onInit: (el, pswp) => {
-                el.addEventListener('click', handleClick.bind(null, pswp));
+                el.addEventListener('click', photoSwipeDownloadHandleClick.bind(null, pswp));
             }
         });
     });
     lightbox.init();
 }
 
-async function handleClick(pswp, event) {
+async function photoSwipeDownloadHandleClick(pswp, event) {
     event.preventDefault();
 
     try {
@@ -104,6 +105,7 @@ async function handleClick(pswp, event) {
 
         const imageUrl = generateOriginalImageUrl(url, format);
         const imageBlob = await fetchImageBlob(imageUrl);
+
         if (imageBlob) {
             downloadImage(imageBlob, format);
         } else {
@@ -163,8 +165,13 @@ function isTargetImage(node) {
 
     // imgタグ
     if (!(node.nodeType === 1 && node.tagName.toLowerCase() === 'img')) return false;
+    
+    // 投稿画像
+    if (!(node.src.includes("pbs.twimg.com/media/"))) return false;
+
     // 親要素にlayersIDを含む
     if (!(hasParentWithId(node))) return false;
+
     // 親要素にa要素を含まない
     if (hasParentAnchorElement(node)) return false;
 
