@@ -7,8 +7,9 @@ const photoSwipeOptions = {
     pswpModule: PhotoSwipe,
     wheelToZoom: true,
     initialZoomLevel: 1,
-    secondaryZoomLevel: 'fit',
+    // secondaryZoomLevel: 'fit',
     maxZoomLevel: 10,
+    imageClickAction: 'close',
 };
 
 insertZoomLayer();
