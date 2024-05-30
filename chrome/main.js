@@ -1,20 +1,43 @@
 const xRootID = 'react-root';
 const layersID = 'layers';
-const zoomLayerID = 'zoomLayer';
 const photoSwipeOptions = {
-    gallery: `#${zoomLayerID}`,
-    children: 'a',
     pswpModule: PhotoSwipe,
     wheelToZoom: true,
     initialZoomLevel: 1,
-    // secondaryZoomLevel: 'fit',
     maxZoomLevel: 10,
     imageClickAction: 'close',
+    loop: false,
 };
+let lightbox = null;
 
-insertZoomLayer();
 initPhotoswipe();
 startMutationObserver();
+
+function initPhotoswipe() {
+    lightbox = new PhotoSwipeLightbox(photoSwipeOptions);
+
+    lightbox.on('uiRegister', function () {
+        lightbox.pswp.ui.registerElement({
+            name: 'download-button',
+            order: 8,
+            isButton: true,
+            tagName: 'button',
+
+            // ダウンロードボタンのカスタマイズ
+            html: {
+                isCustomSVG: true,
+                inner: '<path d="M20.5 14.3 17.1 18V10h-2.2v7.9l-3.4-3.6L10 16l6 6.1 6-6.1ZM23 23H9v2h14Z" id="pswp__icn-download"/>',
+                outlineID: 'pswp__icn-download',
+            },
+            onInit: (el, pswp) => {
+                el.setAttribute('title', 'Download');
+                el.setAttribute('aria-label', 'Download');
+                el.addEventListener('click', photoSwipeDownloadHandleClick.bind(null, pswp));
+            }
+        });
+    });
+    lightbox.init();
+}
 
 function startMutationObserver() {
 
@@ -26,7 +49,7 @@ function startMutationObserver() {
         mutations.forEach(function (mutation) {
             mutation.addedNodes.forEach(function (node) {
                 if (isTargetImage(node)) {
-                    addClickEvent(node);
+                    changeCursor(node);
                 }
             });
         });
@@ -37,61 +60,38 @@ function startMutationObserver() {
     observer.observe(reactRoot, config);
 }
 
-function insertZoomLayer() {
-
-    const zoomLayer = document.createElement('div');
-    const zoomItem = document.createElement('a');
-    zoomLayer.id = zoomLayerID;
-    zoomLayer.style.display = 'none';
-    zoomLayer.appendChild(zoomItem);
-
-    document.body.appendChild(zoomLayer);
-}
-
-function addClickEvent(node) {
-
-    // すでにクリックイベントを設定している場合は無視
-    if (node.onclick === photoSwipeClickEventHandler) return;
-
-    node.addEventListener('click', photoSwipeClickEventHandler);
-
-    function photoSwipeClickEventHandler(event) {
-        const clickedElement = event.target;
-
-        const zoomLayer = document.getElementById(zoomLayerID);
-        if (!zoomLayer) return;
-        const zoomItem = zoomLayer.querySelector('a');
-        if (!zoomItem) return;
-        zoomItem.href = clickedElement.src;
-        zoomItem.setAttribute('data-pswp-width', clickedElement.naturalWidth);
-        zoomItem.setAttribute('data-pswp-height', clickedElement.naturalHeight);
-
-        zoomItem.click();
+function changeCursor(node) {
+    function onMouseEnter() {
+        node.style.cursor = 'zoom-in';
     }
+    function onMouseLeave() {
+        node.style.cursor = 'auto';
+    }
+    node.addEventListener('mouseenter', onMouseEnter);
+    node.addEventListener('mouseleave', onMouseLeave);
 }
 
-function initPhotoswipe() {
-    var lightbox = new PhotoSwipeLightbox(photoSwipeOptions);
+// プレビュー画像をクリックしたらPhotoSwipeを開く
+document.addEventListener('click', function (event) {
 
-    lightbox.on('uiRegister', function () {
-        lightbox.pswp.ui.registerElement({
-            name: 'download-button',
-            order: 8,
-            isButton: true,
-            tagName: 'a',
+    const clickedElement = event.target;
 
-            // ダウンロードボタンのカスタマイズ
-            html: {
-                isCustomSVG: true,
-                inner: '<path d="M20.5 14.3 17.1 18V10h-2.2v7.9l-3.4-3.6L10 16l6 6.1 6-6.1ZM23 23H9v2h14Z" id="pswp__icn-download"/>',
-                outlineID: 'pswp__icn-download'
-            },
-            onInit: (el, pswp) => {
-                el.addEventListener('click', photoSwipeDownloadHandleClick.bind(null, pswp));
-            }
-        });
+    if (isTargetImage(clickedElement)) {
+        openPhotoSwipe(clickedElement);
+    }
+}, true);
+
+function openPhotoSwipe(clickedElement) {
+
+    let dataSources = [];
+
+    dataSources.push({
+        src: clickedElement.src,
+        width: clickedElement.naturalWidth,
+        height: clickedElement.naturalHeight
     });
-    lightbox.init();
+
+    lightbox.loadAndOpen(0, dataSources);
 }
 
 async function photoSwipeDownloadHandleClick(pswp, event) {
@@ -119,7 +119,7 @@ async function photoSwipeDownloadHandleClick(pswp, event) {
 
 function generateOriginalImageUrl(url, format) {
     url.search = '';
-    url.href += `.${format}:orig`;
+    url.href += `?format=${format}&name=orig`;
     return url.toString();
 }
 
