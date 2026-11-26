@@ -3,11 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node test/run.js",
+    "dev:firefox": "node tools/firefox.js dev",
     "pack:chrome": "node tools/chrome.js",
     "pack:firefox": "node tools/firefox.js pack",
     "release:firefox": "node tools/firefox.js release"
   },
   "devDependencies": {
+    "puppeteer-core": "^25.19.0",
     "web-ext": "^10.8.0"
   }
 }

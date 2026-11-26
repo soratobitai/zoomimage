@@ -1,0 +1,48 @@
+<!doctype html>
+<!--
+  X の画面のうち、この拡張が関わる部分の構造を再現したページ（test/run.js が使う）。
+  構造は 2026-11 に X の配信している JS から確かめたもの。X が UI を変えたら、ここも合わせる。
+  pbs.twimg.com の画像は test/run.js が横取りしてダミーを返す（X にはアクセスしない）。
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<script>
+  // ダウンロードで保存されるファイル名を記録する（実際には保存しない）
+  window.__downloads = [];
+  HTMLAnchorElement.prototype.click = function () { if (this.download) window.__downloads.push(this.download); };
+</script>
+<!-- EXTENSION_CSS -->
+</head>
+<body style="margin:0">
+  <!-- 新UIのタイムライン：画像の上に、ビューアを開くリンクが重なっている -->
+  <article style="position:relative;width:300px;height:200px">
+    <img id="timeline" src="https://pbs.twimg.com/media/TIMELINE?format=jpg&amp;name=small" style="width:300px;height:200px">
+    <a aria-label="View media" href="#" onclick="event.preventDefault()" style="position:absolute;inset:0;z-index:10"></a>
+  </article>
+
+  <!-- 旧UI：画像ビューアは #layers の中 -->
+  <div id="layers" style="position:absolute;left:320px;top:0;width:300px;height:200px">
+    <div role="dialog" aria-modal="true">
+      <img id="old-viewer" src="https://pbs.twimg.com/media/OLDUI?format=jpg&amp;name=4096x4096" style="width:300px;height:200px">
+    </div>
+  </div>
+
+  <!-- 新UI：画像ビューアは Base UI のポータルの中の [role="dialog"]。画像は領域いっぱいに広がり、object-fit: contain で表示される -->
+  <div data-base-ui-portal style="position:absolute;left:0;top:220px;width:640px;height:400px">
+    <div role="dialog" data-slot="xds-modal-surface" aria-label="Media viewer" style="position:relative;width:640px;height:400px;background:#000">
+      <div style="position:absolute;inset:0">
+        <img id="new-viewer" alt="Image" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain"
+          src="https://pbs.twimg.com/media/NEWUI?format=webp&amp;name=large"
+          srcset="https://pbs.twimg.com/media/NEWUI?format=webp&amp;name=small 680w, https://pbs.twimg.com/media/NEWUI?format=webp&amp;name=large 2048w"
+          sizes="640px">
+      </div>
+      <!-- ビューア内の返信：画像はリンクの中 -->
+      <div style="position:absolute;right:0;top:0;width:120px;height:80px">
+        <a href="#" onclick="event.preventDefault()"><img id="reply" src="https://pbs.twimg.com/media/REPLY?format=jpg&amp;name=small" style="width:120px;height:80px"></a>
+      </div>
+    </div>
+  </div>
+<!-- EXTENSION_JS -->
+</body>
+</html>

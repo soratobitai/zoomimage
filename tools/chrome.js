@@ -1,6 +1,6 @@
 // Chrome ウェブストアに提出する ZIP を作る。
 //
-// chrome/ をそのまま ZIP にまとめる。
+// extension/ をそのまま ZIP にまとめる（共通の manifest がそのまま Chrome 用になっている）。
 //
 // 使い方:
 //   npm run pack:chrome   dist/zoomimage-<版>-chrome.zip を作る。ストアのデベロッパー ダッシュボードからアップロードする
@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const EXTENSION = path.join(ROOT, 'chrome');
+const EXTENSION = path.join(ROOT, 'extension');
 const DIST = path.join(ROOT, 'dist');
 const WEB_EXT = path.join(ROOT, 'node_modules/web-ext/bin/web-ext.js');
 
