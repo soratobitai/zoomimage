@@ -1,2 +1,4 @@
 images/
 Firefox Backup Authentication Codes.txt
+node_modules/
+dist/

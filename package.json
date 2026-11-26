@@ -1,0 +1,13 @@
+{
+  "name": "zoomimage",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "pack:chrome": "node tools/chrome.js",
+    "pack:firefox": "node tools/firefox.js pack",
+    "release:firefox": "node tools/firefox.js release"
+  },
+  "devDependencies": {
+    "web-ext": "^10.8.0"
+  }
+}

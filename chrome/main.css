@@ -1,0 +1,4 @@
+/* 画像ビューア内の投稿画像にズームカーソルを表示（main.js の isTargetImage と同じ条件） */
+:is(#layers, [role="dialog"]) img[src*="pbs.twimg.com/media/"]:not(a img) {
+    cursor: zoom-in;
+}

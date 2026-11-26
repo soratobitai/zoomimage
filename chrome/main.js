@@ -1,5 +1,6 @@
-const xRootID = 'react-root';
-const layersID = 'layers';
+// Xの画像ビューア（旧UI: #layers / 新UI: [role="dialog"]）
+// ※ main.css のカーソル指定も同じセレクタを使用
+const viewerSelector = '#layers, [role="dialog"]';
 const photoSwipeOptions = {
     pswpModule: PhotoSwipe,
     wheelToZoom: true,
@@ -11,7 +12,6 @@ const photoSwipeOptions = {
 let lightbox = null;
 
 initPhotoswipe();
-startMutationObserver();
 
 function initPhotoswipe() {
     lightbox = new PhotoSwipeLightbox(photoSwipeOptions);
@@ -39,38 +39,6 @@ function initPhotoswipe() {
     lightbox.init();
 }
 
-function startMutationObserver() {
-
-    // Xのルート要素
-    const reactRoot = document.getElementById(xRootID);
-    if (!reactRoot) return;
-
-    const observer = new MutationObserver(function (mutations) {
-        mutations.forEach(function (mutation) {
-            mutation.addedNodes.forEach(function (node) {
-                if (isTargetImage(node)) {
-                    changeCursor(node);
-                }
-            });
-        });
-    });
-
-    // MutationObserverを設定
-    const config = { childList: true, subtree: true };
-    observer.observe(reactRoot, config);
-}
-
-function changeCursor(node) {
-    function onMouseEnter() {
-        node.style.cursor = 'zoom-in';
-    }
-    function onMouseLeave() {
-        node.style.cursor = 'auto';
-    }
-    node.addEventListener('mouseenter', onMouseEnter);
-    node.addEventListener('mouseleave', onMouseLeave);
-}
-
 // プレビュー画像をクリックしたらPhotoSwipeを開く
 document.addEventListener('click', function (event) {
 
@@ -83,10 +51,14 @@ document.addEventListener('click', function (event) {
 
 function openPhotoSwipe(clickedElement) {
 
+    // 読み込み中の画像はサイズが取れないため開かない
+    if (!clickedElement.naturalWidth) return;
+
     let dataSources = [];
 
+    // 新UIではsrcsetがあるため、実際に表示中の画像（currentSrc）を使う
     dataSources.push({
-        src: clickedElement.src,
+        src: clickedElement.currentSrc || clickedElement.src,
         width: clickedElement.naturalWidth,
         height: clickedElement.naturalHeight
     });
@@ -101,26 +73,27 @@ async function photoSwipeDownloadHandleClick(pswp, event) {
         const url = new URL(pswp.currSlide.data.src);
 
         // 画像形式を取得
-        const searchParams = new URLSearchParams(url.search);
-        const format = searchParams.get('format');
+        // 表示用の形式（webp等）でオリジナルが取得できない場合に備え、jpg・pngも試す
+        const format = url.searchParams.get('format') || 'jpg';
+        const formats = [...new Set([format, 'jpg', 'png'])];
 
-        const imageUrl = generateOriginalImageUrl(url, format);
-        const imageBlob = await fetchImageBlob(imageUrl);
-
-        if (imageBlob) {
-            downloadImage(imageBlob, format);
-        } else {
-            throw new Error('Failed to fetch image. Check the URL or try again later.');
+        for (const f of formats) {
+            const imageBlob = await fetchImageBlob(generateOriginalImageUrl(url, f));
+            if (imageBlob) {
+                downloadImage(imageBlob, f);
+                return;
+            }
         }
+        throw new Error('Failed to fetch image. Check the URL or try again later.');
     } catch (error) {
         console.error('Error handling click event:', error.message);
     }
 }
 
 function generateOriginalImageUrl(url, format) {
-    url.search = '';
-    url.href += `?format=${format}&name=orig`;
-    return url.toString();
+    const originalUrl = new URL(url.origin + url.pathname);
+    originalUrl.search = `?format=${format}&name=orig`;
+    return originalUrl.toString();
 }
 
 async function fetchImageBlob(imageUrl) {
@@ -170,35 +143,11 @@ function isTargetImage(node) {
     // 投稿画像
     if (!(node.src.includes("pbs.twimg.com/media/"))) return false;
 
-    // 親要素にlayersIDを含む
-    if (!(hasParentWithId(node))) return false;
+    // 画像ビューア内にある
+    if (!node.closest(viewerSelector)) return false;
 
     // 親要素にa要素を含まない
-    if (hasParentAnchorElement(node)) return false;
+    if (node.closest('a')) return false;
 
     return true;
-}
-
-function hasParentWithId(element) {
-
-    while (element) {
-        if (element.id === layersID) {
-            return true;
-        }
-        element = element.parentElement;
-    }
-
-    return false;
-}
-
-function hasParentAnchorElement(element) {
-
-    while (element) {
-        if (element.tagName.toLowerCase() === 'a') {
-            return true;
-        }
-        element = element.parentElement;
-    }
-
-    return false;
 }
