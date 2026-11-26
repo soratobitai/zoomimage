@@ -1,4 +1,9 @@
 /* 画像ビューア内の投稿画像にズームカーソルを表示（main.js の isTargetImage と同じ条件） */
-:is(#layers, [role="dialog"]) img[src*="pbs.twimg.com/media/"]:not(a img) {
+:is(#layers, [role="dialog"]) img[src^="https://pbs.twimg.com/media/"]:not(a img) {
     cursor: zoom-in;
+}
+
+/* ダウンロードに失敗したことを、ボタンの色で知らせる */
+.pswp__button.zoomimage-download-failed .pswp__icn {
+    fill: #f4212e;
 }

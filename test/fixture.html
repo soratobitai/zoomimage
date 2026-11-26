@@ -11,6 +11,10 @@
   // ダウンロードで保存されるファイル名を記録する（実際には保存しない）
   window.__downloads = [];
   HTMLAnchorElement.prototype.click = function () { if (this.download) window.__downloads.push(this.download); };
+  // 一時URLを解放したかを記録する
+  window.__revoked = [];
+  const revokeObjectURL = URL.revokeObjectURL.bind(URL);
+  URL.revokeObjectURL = (url) => { window.__revoked.push(url); revokeObjectURL(url); };
 </script>
 <!-- EXTENSION_CSS -->
 </head>

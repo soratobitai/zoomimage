@@ -7,6 +7,7 @@
 // 使い方:
 //   npm test               Chrome と Firefox で確かめる
 //   npm test -- chrome     Chrome だけ（firefox なら Firefox だけ）
+//   環境変数 EXTENSION_DIR を付けると、extension/ の代わりにそのフォルダ（前の版など）で確かめる
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -14,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const EXTENSION = path.join(ROOT, 'extension');
+const EXTENSION = path.resolve(process.env.EXTENSION_DIR || path.join(ROOT, 'extension'));
 const BROWSERS = {
   chrome: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
   firefox: process.env.FIREFOX_PATH || 'C:/Program Files/Mozilla Firefox/firefox.exe',
@@ -51,13 +52,14 @@ function startServer() {
 
 // pbs.twimg.com への要求に、ダミーの画像を返す
 // 表示用の形式（webp）のオリジナルは無いものとして 404 を返し、ダウンロードが jpg を取り直すかを確かめる
+// 画像の ID が BROKEN のものは、オリジナルがどの形式でも取れない（ダウンロードの失敗を確かめる）
 function answerImage(request, requests) {
   const url = new URL(request.url());
   requests.push(request.url());
   const format = url.searchParams.get('format');
   const name = url.searchParams.get('name');
   const headers = { 'Access-Control-Allow-Origin': '*' };
-  if (name === 'orig' && format === 'webp') return request.respond({ status: 404, headers, body: '' });
+  if (name === 'orig' && (format === 'webp' || url.pathname.endsWith('/BROKEN'))) return request.respond({ status: 404, headers, body: '' });
   const [w, h] = name === 'small' ? [680, 453] : [2048, 1365];
   return request.respond({
     status: 200,
@@ -91,15 +93,18 @@ async function check(browserName, port) {
       await page.mouse.click(box.x, box.y);
       await sleep(1000);
     };
-    const download = async () => {
+    // ダウンロードボタンを押す（clicks 回続けて押す）。取得したオリジナルの URL と、保存したファイル名を返す
+    const download = async (clicks = 1) => {
       requests.length = 0;
-      await page.$eval('.pswp__button--download-button', (el) => el.click());
+      const before = await page.evaluate(() => window.__downloads.length);
+      await page.$eval('.pswp__button--download-button', (el, clicks) => { for (let i = 0; i < clicks; i++) el.click(); }, clicks);
       await sleep(1000);
       return {
         originals: requests.filter((u) => u.includes('name=orig')),
-        file: await page.evaluate(() => window.__downloads.at(-1)),
+        files: await page.evaluate((before) => window.__downloads.slice(before), before),
       };
     };
+    const goTo = (pathname) => page.evaluate((pathname) => history.pushState(null, '', pathname), pathname);
     const close = async () => {
       await page.$eval('.pswp__button--close', (el) => el.click());
       await sleep(800);
@@ -123,7 +128,23 @@ async function check(browserName, port) {
         'https://pbs.twimg.com/media/NEWUI?format=webp&name=orig',
         'https://pbs.twimg.com/media/NEWUI?format=jpg&name=orig',
       ]), newUi.originals.join(' , '));
-      expect('新UI：ファイル名は「ユーザー_投稿ID_番号.取れた形式」', newUi.file === 'someuser_1234567890_1.jpg', newUi.file);
+      expect('ファイル名は「ユーザー_投稿ID_番号.取れた形式」', newUi.files[0] === 'someuser_1234567890_1.jpg', newUi.files[0]);
+      expect('保存に使った一時URLを、すぐには解放しない', (await page.evaluate(() => window.__revoked.length)) === 0);
+
+      // ファイル名は、ページの URL から作る
+      for (const [pathname, expected, label] of [
+        ['/1234567/status/1234567890/photo/2', '1234567_1234567890_2.jpg', '数字だけのユーザー名でも、投稿IDを取り違えない'],
+        ['/someuser/status/1234567890/mediaviewer', 'someuser_1234567890_NEWUI.jpg', '画像の番号が無いページでは、番号の代わりに画像のID'],
+        ['/home', 'NEWUI.jpg', '投稿のページでなければ、画像のIDだけ'],
+      ]) {
+        await goTo(pathname);
+        const { files } = await download();
+        expect(`ファイル名：${label}`, files[0] === expected, files[0]);
+      }
+      await goTo('/someuser/status/1234567890/photo/1');
+
+      const repeated = await download(3);
+      expect('ダウンロードボタンを連打しても、保存は 1 回', repeated.files.length === 1 && repeated.originals.length === 2, `保存 ${repeated.files.length} 回、取得 ${repeated.originals.length} 回`);
       await close();
       expect('新UI：閉じるボタンで閉じる', !(await isOpen()));
     }
@@ -137,6 +158,19 @@ async function check(browserName, port) {
         'https://pbs.twimg.com/media/OLDUI?format=jpg&name=orig',
       ]), oldUi.originals.join(' , '));
       await close();
+    }
+
+    // オリジナルがどの形式でも取れない画像
+    await page.$eval('#old-viewer', (img) => { img.src = 'https://pbs.twimg.com/media/BROKEN?format=jpg&name=large'; });
+    await page.waitForFunction(() => document.getElementById('old-viewer').naturalWidth > 0);
+    await clickCenter('old-viewer');
+    if (await isOpen()) {
+      const failed = await download();
+      const button = await page.$eval('.pswp__button--download-button', (el) => ({ failed: el.classList.contains('zoomimage-download-failed'), title: el.title, disabled: el.disabled }));
+      expect('ダウンロードに失敗したら、保存せずにボタンで知らせる', failed.files.length === 0 && button.failed && button.title === 'Download failed' && !button.disabled, JSON.stringify(button));
+      await close();
+    } else {
+      expect('ダウンロードに失敗したら、保存せずにボタンで知らせる', false, '拡大画面が開かなかった');
     }
 
     await clickCenter('timeline');
